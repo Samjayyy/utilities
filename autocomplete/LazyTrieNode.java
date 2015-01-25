@@ -5,8 +5,7 @@ import java.util.HashMap;
 /**
  * @author Sammie
  */
-public class LazyTrieNode {
-	private static final int MAX_HITS = 100;
+public class LazyTrieNode implements IAutocomplete {
 	private static final ArrayList<Integer> EMPTY = new ArrayList<Integer>();
 	
 	private ArrayList<Integer> values;

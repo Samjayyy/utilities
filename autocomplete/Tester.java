@@ -7,11 +7,35 @@ public class Tester {
 	static final int MAX_RECORDS = 100000;
 	static final int LOOKUP_TESTS = 100000;
 	public static void main(String[] args) {
-		testCorrectness();
+		log(">> Testing the correctness");
+		log();
+		log("-- TESTING LAZY TRIE NODE --");
+		testCorrectness(new LazyTrieNode());
+		log("--------------------------------");
+		log("-- TESTING AUTO COMPLETE TREE --");
+		testCorrectness(new AutocompleteTree());
+		log("--------------------------------");
+		log(">> Testing the performance");
+		log();
+		log("-- TESTING LAZY TRIE NODE --");
+		// At my machine, running solely
+		// Used mem orig: 49MB
+		// Used mem after filling: 58MB
+		// time fill: 372ms
+		// time lookup: 560 ms
+		testPerformance(new LazyTrieNode());
+		log("--------------------------------");
+		log("-- TESTING AUTO COMPLETE TREE --");
+		// At my machine, running solely
+		// Used mem orig: 51MB
+		// Used mem after filling: 58MB
+		// time fill: 330ms
+		// time lookup: 622 ms
+		testPerformance(new AutocompleteTree());
+		log("--------------------------------");
 	}
-	static void testCorrectness(){
+	static void testCorrectness(IAutocomplete root){
 		log("Starting test..");
-		LazyTrieNode root = new LazyTrieNode();
 		// empty
 		assertTrue(root.find("").isEmpty());
 		assertTrue(root.find("abcd").isEmpty());
@@ -51,13 +75,15 @@ public class Tester {
 		assertTrue(root.find("bcd").get(0)==3);
 		assertTrue(root.find("bcd").get(1)==4);
 		assertTrue(root.find("bcde").isEmpty());
+		// recheck that b doesn't influence a
+		assertTrue(root.find("a").size()==2);
 		log("all testCases passed");
 	}
 	static void assertTrue(boolean condition){
 		if(!condition)
 			throw new AssertionError();
 	}
-	static void testPerformance(){
+	static void testPerformance(IAutocomplete root){
 		log("Starting test..");
         printMemory();
         long start = System.currentTimeMillis();
@@ -68,10 +94,9 @@ public class Tester {
 		}
 		log("Time: "+(System.currentTimeMillis()-start)+" ms");
         printMemory();
-		// test Trie
-        System.err.println("Start filling the trie");
+		// test datastructure
+        System.err.println("Start filling the datastructure");
         start = System.currentTimeMillis();
-        LazyTrieNode root = new LazyTrieNode();
 		for(int i=0;i<lijst.size();i++){
 			root.insert(lijst.get(i), i);
 		}
