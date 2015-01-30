@@ -118,6 +118,7 @@ public class XmlComparer {
 	static void check(MyNode A, MyNode B){
 		if(A.compareTo(B) == 0){
 			A.checked = B.checked = true;
+			return;
 		}
 		int a = 0,
 			b = 0;
