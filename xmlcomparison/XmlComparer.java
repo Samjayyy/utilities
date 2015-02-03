@@ -1,8 +1,10 @@
 package utilities.xmlcomparison;
 
-import java.io.File;
+import java.io.FileInputStream;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -10,10 +12,23 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+/**
+ * @author Sammie
+ * 
+ * XmlComparer compares two scrambled XMLs and tries to check if they are equal
+ * It prints out all nodes which couldn't be matched, or have an unmatching child.
+ * 
+ * Notes:
+ * - In this version attributes are not being taken into account (did not need it so far)
+ * - 2 almost equal nodes from both xmls may appear as totally unmatching 
+ * 		because there are other nodes added/missing in one of the xmls.
+ * 		This may cause the comparer to end up in comparing them with other nodes.
+ */
 public class XmlComparer {
 	
 	// tree friendly representation
 	// current version doesn't take attributes into account
+	static PrintStream OUT = System.out;
 	static class MyNode implements Comparable<MyNode>{
 		final Node original;
 		ArrayList<MyNode> children;
@@ -38,7 +53,12 @@ public class XmlComparer {
 				if (nl.item(count).getNodeType() == Node.ELEMENT_NODE){
 					this.children.add(new MyNode(nl.item(count),this.depth+1));					
 				}else if(nl.item(count).getNodeType() == Node.TEXT_NODE){
-					this.textValue = nl.item(count).getNodeValue();
+					if(IsNullOrWhiteSpace(nl.item(count).getNodeValue()))continue;
+					if(IsNullOrWhiteSpace(this.textValue)){
+						this.textValue = nl.item(count).getNodeValue().trim();						
+					}else{
+						this.textValue += nl.item(count).getNodeValue().trim();
+					}
 				}
 			}
 			Collections.sort(this.children);
@@ -61,15 +81,6 @@ public class XmlComparer {
 			}
 			return this.original.getNodeName().compareTo(oth.original.getNodeName());		
 		}
-		private static boolean IsNullOrWhiteSpace(String s){
-			if(s==null)return true;
-			return s.trim().isEmpty();
-		}
-		private static void printSpaces(int count){
-			if(count<=0)return;
-			System.err.print(" ");
-			printSpaces(count-1);
-		}
 		@Override
 		public String toString() {
 			return "attr name : " + original.getNodeName() + 
@@ -78,52 +89,91 @@ public class XmlComparer {
 		public void printUnchecked(){
 			if(this.checked)return;
 			printSpaces(this.depth);
-			System.err.println("<"+original.getNodeName()+">");
+			OUT.println("<"+original.getNodeName()+">");
 			for(MyNode chld : children)
 				chld.printUnchecked();
 			if(!IsNullOrWhiteSpace(this.textValue)){
 				printSpaces(this.depth+1);
-				System.err.println(this.textValue);
+				OUT.println(this.textValue);
 			}
 			printSpaces(this.depth);
-			System.err.println("</"+original.getNodeName()+">");
+			OUT.println("</"+original.getNodeName()+">");
 		}
 	}
 	
+	static final String FILENAMES = "-FILES";
 	public static void main(String[] args) throws Exception{
-		String filename1,filename2; 
-		if(args.length==2){
-			filename1 = args[0];
-			filename2 = args[1];
-		}else{
-			filename1 = System.getProperty("user.dir")+"\\A.xml";
-			filename2 = System.getProperty("user.dir")+"\\B.xml";
+		// default config
+		String filename1 = System.getProperty("user.dir")+"\\C.xml",
+				filename2 = System.getProperty("user.dir")+"\\D.xml";		
+		for(int i=0;i<args.length;i++){
+			if(FILENAMES.equalsIgnoreCase(args[i])){
+				if(i+2>=args.length){
+					OUT.println("Passing the files argument is expected to be followed by the two xmls");
+					OUT.println("e.g. xmlcompare -files A.xml B.xml");
+				}
+				filename1 = args[++i];
+				filename2 = args[++i];
+			}else{
+				OUT.println("-- UNKNOWN PARAMETER: "+args[i]+" --");
+			}
 		}
-		System.err.println("working directory: "+System.getProperty("user.dir"));
-		File fileA = new File(filename1),
-			fileB = new File(filename2);
+		OUT.println("working directory: "+System.getProperty("user.dir"));
+		FileInputStream fileA = new FileInputStream(filename1),
+			fileB = new FileInputStream(filename2);
 		DocumentBuilder dBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
 		MyNode A = new MyNode(dBuilder.parse(fileA)),
 			B = new MyNode(dBuilder.parse(fileB));
-		check(A,B);
+		checkBestMatch(A,B);
 		if(A.checked && B.checked){
-			System.err.println("XML IS EXACT THE SAME");
+			OUT.println("XML IS EXACT THE SAME");
 		}else{
-			System.err.println("Incompatible nodes: ");
+			OUT.println("Incompatible nodes: ");
 			A.printUnchecked();
-			System.err.println("-----");
+			OUT.println("-----");
 			B.printUnchecked();
 		}
 	}
-	static void check(MyNode A, MyNode B){
+	private static void checkBestMatch(MyNode A, MyNode B){
 		if(A.compareTo(B) == 0){
 			A.checked = B.checked = true;
 			return;
 		}
+		ArrayList<MyNode> aTodo = new ArrayList<MyNode>(A.children),
+				bTodo = new ArrayList<MyNode>(B.children);
+		matchExact(aTodo, bTodo);
 		int a = 0,
 			b = 0;
-		while(a < A.children.size() && b < B.children.size()){
-			check(A.children.get(a++),B.children.get(b++));
+		while(a < aTodo.size() && b < bTodo.size()){
+			checkBestMatch(aTodo.get(a++),bTodo.get(b++));
+		}		
+	}
+	
+	private static void matchExact(ArrayList<MyNode> aList, ArrayList<MyNode> bList){
+		Iterator<MyNode> aIt = aList.iterator();
+		while(aIt.hasNext()){
+			MyNode a = aIt.next();
+			Iterator<MyNode> bIt = bList.iterator();
+			while(bIt.hasNext()){
+				MyNode b = bIt.next();
+				int cmp = a.compareTo(b);
+				if(cmp == 0){
+					a.checked=b.checked=true;
+					aIt.remove();bIt.remove();
+				}
+				// we assume sorting is correct and no other b will be equal to a
+				// from the moment that there is a smaller b
+				if(cmp >= 0)break; 
+			}
 		}
-	}	
+	}
+	private static boolean IsNullOrWhiteSpace(String s){
+		if(s==null)return true;
+		return s.trim().isEmpty();
+	}
+	private static void printSpaces(int count){
+		if(count<=0)return;
+		OUT.print(" ");
+		printSpaces(count-1);
+	}
 }
