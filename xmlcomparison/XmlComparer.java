@@ -26,9 +26,10 @@ import org.w3c.dom.NodeList;
  */
 public class XmlComparer {
 	
+	private static final PrintStream Out = System.out;
+	private static final String FILENAMES = "-FILES";
+
 	// tree friendly representation
-	// current version doesn't take attributes into account
-	static PrintStream OUT = System.out;
 	static class MyNode implements Comparable<MyNode>{
 		final Node original;
 		ArrayList<MyNode> children;
@@ -89,36 +90,35 @@ public class XmlComparer {
 		public void printUnchecked(){
 			if(this.checked)return;
 			printSpaces(this.depth);
-			OUT.println("<"+original.getNodeName()+">");
+			Out.println("<"+original.getNodeName()+">");
 			for(MyNode chld : children)
 				chld.printUnchecked();
 			if(!IsNullOrWhiteSpace(this.textValue)){
 				printSpaces(this.depth+1);
-				OUT.println(this.textValue);
+				Out.println(this.textValue);
 			}
 			printSpaces(this.depth);
-			OUT.println("</"+original.getNodeName()+">");
+			Out.println("</"+original.getNodeName()+">");
 		}
 	}
 	
-	static final String FILENAMES = "-FILES";
 	public static void main(String[] args) throws Exception{
 		// default config
-		String filename1 = System.getProperty("user.dir")+"\\C.xml",
-				filename2 = System.getProperty("user.dir")+"\\D.xml";		
+		String filename1 = System.getProperty("user.dir")+"\\A.xml",
+				filename2 = System.getProperty("user.dir")+"\\B.xml";		
 		for(int i=0;i<args.length;i++){
 			if(FILENAMES.equalsIgnoreCase(args[i])){
 				if(i+2>=args.length){
-					OUT.println("Passing the files argument is expected to be followed by the two xmls");
-					OUT.println("e.g. xmlcompare -files A.xml B.xml");
+					Out.println("Passing the files argument is expected to be followed by the two xmls");
+					Out.println("e.g. xmlcompare -files A.xml B.xml");
 				}
 				filename1 = args[++i];
 				filename2 = args[++i];
 			}else{
-				OUT.println("-- UNKNOWN PARAMETER: "+args[i]+" --");
+				Out.println("-- UNKNOWN PARAMETER: "+args[i]+" --");
 			}
 		}
-		OUT.println("working directory: "+System.getProperty("user.dir"));
+		Out.println("working directory: "+System.getProperty("user.dir"));
 		FileInputStream fileA = new FileInputStream(filename1),
 			fileB = new FileInputStream(filename2);
 		DocumentBuilder dBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
@@ -126,15 +126,17 @@ public class XmlComparer {
 			B = new MyNode(dBuilder.parse(fileB));
 		checkBestMatch(A,B);
 		if(A.checked && B.checked){
-			OUT.println("XML IS EXACT THE SAME");
+			Out.println("XML IS EXACT THE SAME");
 		}else{
-			OUT.println("Incompatible nodes: ");
+			Out.println("Incompatible nodes: ");
 			A.printUnchecked();
-			OUT.println("-----");
+			Out.println("-----");
 			B.printUnchecked();
 		}
 	}
 	private static void checkBestMatch(MyNode A, MyNode B){
+		if(A.checked || B.checked)
+			throw new AssertionError("A and B should still be in stat to check");
 		if(A.compareTo(B) == 0){
 			A.checked = B.checked = true;
 			return;
@@ -162,7 +164,7 @@ public class XmlComparer {
 					aIt.remove();bIt.remove();
 				}
 				// we assume sorting is correct and no other b will be equal to a
-				// from the moment that there is a smaller b
+				// from the moment that b is bigger than a. (since we will only encounter even bigger b's)
 				if(cmp >= 0)break; 
 			}
 		}
@@ -173,7 +175,7 @@ public class XmlComparer {
 	}
 	private static void printSpaces(int count){
 		if(count<=0)return;
-		OUT.print(" ");
+		Out.print(" ");
 		printSpaces(count-1);
 	}
 }
